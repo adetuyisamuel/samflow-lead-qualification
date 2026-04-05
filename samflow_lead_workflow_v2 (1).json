@@ -1,0 +1,505 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "formId": "9qvOZK"
+      },
+      "type": "n8n-nodes-tallyforms.tallyTrigger",
+      "typeVersion": 2,
+      "position": [0, 200],
+      "id": "b02d39cd-62f2-4cf1-b17b-d97e4ea629e1",
+      "name": "Lead Submission",
+      "webhookId": "781097b3-3838-4984-9cf2-da88a989b728",
+      "credentials": {
+        "tallyApi": {
+          "id": "bsohqNBhrhFy5nuK",
+          "name": "Tally account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "de44d4ba-5887-47f2-8376-b4a6f8e0bfc6",
+              "name": "full_name",
+              "value": "={{ $json.question_gA0V5d.value | trim }}",
+              "type": "string"
+            },
+            {
+              "id": "cf3d92f2-94f6-4fc4-9155-a746789d9f67",
+              "name": "email",
+              "value": "={{ $json.question_yy6bl4.value | lower | trim }}",
+              "type": "string"
+            },
+            {
+              "id": "e0c3f569-9314-455a-b46d-f92146071563",
+              "name": "phone",
+              "value": "={{ $json.question_XGD7e4.value }}",
+              "type": "string"
+            },
+            {
+              "id": "82181dbf-4dd1-4fa8-957e-6c152f5f0c48",
+              "name": "business_name",
+              "value": "={{ $json.question_8kKYdx.value | trim }}",
+              "type": "string"
+            },
+            {
+              "id": "9790ae2a-8b0f-4b84-b157-c14e05aef69f",
+              "name": "services",
+              "value": "={{ $json.question_0MxYE6.value }}",
+              "type": "string"
+            },
+            {
+              "id": "a136906b-26ba-4c22-b33f-28bb09e8ba23",
+              "name": "note",
+              "value": "={{ $json.question_5kzYdd.value }}",
+              "type": "string"
+            },
+            {
+              "id": "88c548aa-11ea-46b4-8485-ca6ec2f5d010",
+              "name": "budget",
+              "value": "={{ $json.question_zzK8BR.value }}",
+              "type": "number"
+            },
+            {
+              "id": "aa000001-0001-0001-0001-000000000001",
+              "name": "submitted_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 200],
+      "id": "ac8fde9c-765b-4081-9b2b-54f9f9719245",
+      "name": "Normalise Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─── Guard: validate required fields before hitting the AI ───────────────\nconst item = $input.first().json;\n\nconst missing = [];\nif (!item.full_name)     missing.push('full_name');\nif (!item.email)         missing.push('email');\nif (!item.business_name) missing.push('business_name');\n\n// Basic email format check\nconst emailRe = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nif (item.email && !emailRe.test(item.email)) {\n  missing.push('email_format');\n}\n\nreturn [{\n  json: {\n    ...item,\n    _validation_passed: missing.length === 0,\n    _validation_errors: missing\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 200],
+      "id": "validate-001",
+      "name": "Validate Input"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "val-check-01",
+              "leftValue": "={{ $json._validation_passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [660, 200],
+      "id": "if-valid-001",
+      "name": "Is Valid?"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A5CK4V0MQ",
+          "mode": "list",
+          "cachedResultName": "all-samdigital-services"
+        },
+        "text": "=:warning: *Invalid lead submission dropped*\n\n*Email:* {{ $json.email || 'missing' }}\n*Name:* {{ $json.full_name || 'missing' }}\n*Errors:* {{ $json._validation_errors.join(', ') }}\n*Submitted at:* {{ $json.submitted_at }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [880, 340],
+      "id": "slack-invalid-001",
+      "name": "Alert Invalid Lead",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "vntGKukk2sO4CVU0",
+          "name": "Slack OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyse this lead and respond with JSON only:\n\nName: {{ $json.full_name }}\nEmail: {{ $json.email }}\nBusiness: {{ $json.business_name }}\nServices: {{ $json.services }}\nNote: {{ $json.note }}\nBudget: {{ $json.budget }}",
+        "hasOutputParser": false,
+        "options": {
+          "systemMessage": "### ROLE\nYou are a Lead Qualification Specialist for SamFlow AI. Analyse the lead data and return a structured JSON object.\n\n### SCORING RULES\nStart at 40 base points, then add:\n- Business email (not @gmail/@yahoo/@hotmail) → +20\n- business_name present and not generic → +10\n- Each specific service selected → +10 (max +30)\n- Budget > 0 → +10\n- Note/message included → +5\n- Deduct 30 if email looks like spam (test@test.com, fake@fake.com etc.)\n\n### PRIORITY MAPPING\n- score >= 80 → \"hot\"\n- score 50-79 → \"warm\"\n- score < 50 → \"cold\"\n\n### QUALIFICATION RULE\nis_qualified = true ONLY if business_name is present AND at least one service is selected AND the email is not spam.\n\n### OUTPUT\nRespond ONLY with a valid JSON object. No markdown fences, no preamble, no explanation.\n\n{\n  \"is_qualified\": boolean,\n  \"score\": number,\n  \"priority\": \"hot\" | \"warm\" | \"cold\",\n  \"reasoning\": \"One sentence explanation\",\n  \"personalized_message\": \"A short, warm, personalised opening line for the follow-up email referencing their business and services\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [880, 200],
+      "id": "569b29b5-48f5-420f-809b-8ab369dcfb88",
+      "name": "AI Lead Qualifier"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.2,
+          "maxTokens": 512
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [880, 380],
+      "id": "e17036c7-43a5-4e03-b7bc-5da2cdbc31d8",
+      "name": "OpenAI gpt-4o-mini",
+      "credentials": {
+        "openAiApi": {
+          "id": "W5KR2ZZZfX4AjGor",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─── Parse AI JSON output safely ────────────────────────────────────────\nconst raw = $input.first().json.output ?? '';\n\nlet parsed;\ntry {\n  // Strip accidental markdown fences if model adds them\n  const cleaned = raw.replace(/```json|```/gi, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  // Parsing failed — flag for the error branch\n  return [{\n    json: {\n      ...$input.first().json,\n      _ai_parse_error: true,\n      _ai_raw: raw\n    }\n  }];\n}\n\n// Enforce expected types / defaults\nconst is_qualified  = Boolean(parsed.is_qualified);\nconst score         = Math.min(100, Math.max(0, Number(parsed.score) || 0));\nconst priority      = ['hot','warm','cold'].includes(parsed.priority) ? parsed.priority : (score >= 80 ? 'hot' : score >= 50 ? 'warm' : 'cold');\nconst reasoning     = String(parsed.reasoning || '');\nconst personalized_message = String(parsed.personalized_message || '');\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    _ai_parse_error: false,\n    is_qualified,\n    score,\n    priority,\n    reasoning,\n    personalized_message\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 200],
+      "id": "parse-ai-001",
+      "name": "Parse AI Output"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "parse-err-check",
+              "leftValue": "={{ $json._ai_parse_error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1320, 200],
+      "id": "if-parse-err-001",
+      "name": "Parse Error?"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A5CK4V0MQ",
+          "mode": "list",
+          "cachedResultName": "all-samdigital-services"
+        },
+        "text": "=:robot_face: *AI parse error — manual review needed*\n\n*Lead:* {{ $json.full_name }} ({{ $json.email }})\n*Raw AI output:* {{ $json._ai_raw }}\n*Submitted at:* {{ $json.submitted_at }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [1540, 340],
+      "id": "slack-parse-err-001",
+      "name": "Alert Parse Error",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "vntGKukk2sO4CVU0",
+          "name": "Slack OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "qualified-check",
+              "leftValue": "={{ $json.is_qualified }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [1540, 200],
+      "id": "if-qualified-001",
+      "name": "Is Qualified?"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "email": "={{ $json.email }}",
+        "additionalFields": {
+          "firstName": "={{ $json.full_name.split(' ')[0] }}",
+          "lastName": "={{ $json.full_name.split(' ').slice(1).join(' ') }}",
+          "phoneNumber": "={{ $json.phone }}",
+          "company": "={{ $json.business_name }}"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [1760, 100],
+      "id": "hubspot-qualified-001",
+      "name": "HubSpot: Create/Update Qualified",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "YMyJVP60yo93t3PY",
+          "name": "HubSpot OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Normalise Fields').item.json.email }}",
+        "subject": "=We received your enquiry — we'll be in touch shortly",
+        "message": "=Hi {{ $('Normalise Fields').item.json.full_name.split(' ')[0] }},\n\n{{ $('Parse AI Output').item.json.personalized_message }}\n\nWe've received your enquiry about {{ $('Normalise Fields').item.json.services }} and we're excited to learn more about {{ $('Normalise Fields').item.json.business_name }}.\n\nA member of our team will be in touch within 24–48 hours to discuss how we can help.\n\nIn the meantime, feel free to reply to this email if you have any questions.\n\nWarm regards,\nAdetuyi Samuel\nSamFlow AI",
+        "options": {
+          "replyTo": "hello@samflow.ai"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [1980, 100],
+      "id": "gmail-qualified-001",
+      "name": "Send Confirmation Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2tE4P6B8dlarklH0",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A5CK4V0MQ",
+          "mode": "list",
+          "cachedResultName": "all-samdigital-services"
+        },
+        "text": "=:fire: *New {{ $('Parse AI Output').item.json.priority | upper }} lead — action needed!*\n\n*Name:* {{ $('Normalise Fields').item.json.full_name }}\n*Business:* {{ $('Normalise Fields').item.json.business_name }}\n*Services:* {{ $('Normalise Fields').item.json.services }}\n*Budget:* {{ $('Normalise Fields').item.json.budget ? '$' + $('Normalise Fields').item.json.budget : 'Not specified' }}\n*Score:* {{ $('Parse AI Output').item.json.score }}/100\n*Priority:* {{ $('Parse AI Output').item.json.priority | upper }}\n*Reasoning:* {{ $('Parse AI Output').item.json.reasoning }}\n*Email:* {{ $('Normalise Fields').item.json.email }}\n*Submitted:* {{ $('Normalise Fields').item.json.submitted_at }}\n\nFollow up ASAP! :rocket:",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [2200, 100],
+      "id": "slack-hot-001",
+      "name": "Slack: Hot Lead Alert",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "vntGKukk2sO4CVU0",
+          "name": "Slack OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "email": "={{ $json.email }}",
+        "additionalFields": {
+          "firstName": "={{ $json.full_name.split(' ')[0] }}",
+          "lastName": "={{ $json.full_name.split(' ').slice(1).join(' ') }}",
+          "phoneNumber": "={{ $json.phone }}",
+          "company": "={{ $json.business_name }}"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [1760, 300],
+      "id": "hubspot-unqualified-001",
+      "name": "HubSpot: Create/Update Unqualified",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "YMyJVP60yo93t3PY",
+          "name": "HubSpot OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "days"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1980, 300],
+      "id": "ab9c1d77-f805-4acb-863c-3d5e32ee296b",
+      "name": "Wait 2 Days",
+      "webhookId": "ffe1f3cc-aaad-4f8e-8dc6-f23c9e7f3f43"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Normalise Fields').item.json.email }}",
+        "subject": "=Still thinking it over? We're here when you're ready — {{ $('Normalise Fields').item.json.business_name }}",
+        "message": "=Hi {{ $('Normalise Fields').item.json.full_name.split(' ')[0] }},\n\nI just wanted to follow up on your recent enquiry about {{ $('Normalise Fields').item.json.services }}.\n\nWe'd love to help {{ $('Normalise Fields').item.json.business_name }} and wanted to make sure my last message didn't get lost in your inbox.\n\nIf you're still interested, I'm happy to jump on a quick 15-minute call to answer any questions — no pressure at all.\n\nJust reply to this email or book a time that works for you.\n\nLooking forward to hearing from you!\n\nWarm regards,\nAdetuyi Samuel\nCustomer Manager, SamFlow AI",
+        "options": {
+          "replyTo": "hello@samflow.ai"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [2200, 300],
+      "id": "87356acb-d179-4090-914e-b22be8d2c514",
+      "name": "Send Follow-Up Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2tE4P6B8dlarklH0",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "errorWorkflow": ""
+      },
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 480],
+      "id": "error-trigger-001",
+      "name": "Workflow Error Trigger"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A5CK4V0MQ",
+          "mode": "list",
+          "cachedResultName": "all-samdigital-services"
+        },
+        "text": "=:rotating_light: *Workflow error in Lead Qualification*\n\n*Node:* {{ $json.execution.lastNodeExecuted }}\n*Error:* {{ $json.execution.error.message }}\n*Execution ID:* {{ $json.execution.id }}\n*Time:* {{ $now.toISO() }}\n\nPlease check n8n for full details.",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [220, 480],
+      "id": "slack-error-001",
+      "name": "Alert Workflow Error",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "vntGKukk2sO4CVU0",
+          "name": "Slack OAuth2 API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Lead Submission": {
+      "main": [[{ "node": "Normalise Fields", "type": "main", "index": 0 }]]
+    },
+    "Normalise Fields": {
+      "main": [[{ "node": "Validate Input", "type": "main", "index": 0 }]]
+    },
+    "Validate Input": {
+      "main": [[{ "node": "Is Valid?", "type": "main", "index": 0 }]]
+    },
+    "Is Valid?": {
+      "main": [
+        [{ "node": "AI Lead Qualifier", "type": "main", "index": 0 }],
+        [{ "node": "Alert Invalid Lead", "type": "main", "index": 0 }]
+      ]
+    },
+    "AI Lead Qualifier": {
+      "main": [[{ "node": "Parse AI Output", "type": "main", "index": 0 }]]
+    },
+    "OpenAI gpt-4o-mini": {
+      "ai_languageModel": [[{ "node": "AI Lead Qualifier", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Parse AI Output": {
+      "main": [[{ "node": "Parse Error?", "type": "main", "index": 0 }]]
+    },
+    "Parse Error?": {
+      "main": [
+        [{ "node": "Alert Parse Error", "type": "main", "index": 0 }],
+        [{ "node": "Is Qualified?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Is Qualified?": {
+      "main": [
+        [{ "node": "HubSpot: Create/Update Qualified", "type": "main", "index": 0 }],
+        [{ "node": "HubSpot: Create/Update Unqualified", "type": "main", "index": 0 }]
+      ]
+    },
+    "HubSpot: Create/Update Qualified": {
+      "main": [[{ "node": "Send Confirmation Email", "type": "main", "index": 0 }]]
+    },
+    "Send Confirmation Email": {
+      "main": [[{ "node": "Slack: Hot Lead Alert", "type": "main", "index": 0 }]]
+    },
+    "HubSpot: Create/Update Unqualified": {
+      "main": [[{ "node": "Wait 2 Days", "type": "main", "index": 0 }]]
+    },
+    "Wait 2 Days": {
+      "main": [[{ "node": "Send Follow-Up Email", "type": "main", "index": 0 }]]
+    },
+    "Workflow Error Trigger": {
+      "main": [[{ "node": "Alert Workflow Error", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "81736cc2af2445eccf1a258132bba9933086573b17b4fff8f62728a0a73aad9e",
+    "version": "2.0.0",
+    "description": "SamFlow AI Lead Qualification Workflow — Production Grade v2"
+  }
+}
